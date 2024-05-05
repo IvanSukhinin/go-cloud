@@ -2,7 +2,8 @@ env: "dev"
 grpc:
   port: 44044
 storage:
-  path: "/home/hellokitty/GolandProjects/cloud/images/cloud/" # path to storage folder
+  tmp_path: "/home/hellokitty/GolandProjects/cloud/images/cloud/tmp/"
+  completed_path: "/home/hellokitty/GolandProjects/cloud/images/cloud/completed/"
 cloud:
   max_image_size: 20971520 # 20Mb
   available_ext:

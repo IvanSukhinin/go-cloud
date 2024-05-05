@@ -12,8 +12,9 @@ import (
 )
 
 type Storage struct {
-	path string
-	mu   sync.Mutex
+	tmpPath       string
+	completedPath string
+	mu            sync.Mutex
 }
 
 type Image struct {
@@ -24,18 +25,27 @@ type Image struct {
 
 // New init storage.
 func New(cfg config.StorageConfig) (*Storage, error) {
-	path := cfg.Path
-	info, err := os.Stat(path)
+	tmpPath := cfg.TmpPath
+	info, err := os.Stat(tmpPath)
 	if os.IsNotExist(err) {
 		return nil, err
 	}
-
 	if !info.IsDir() {
-		return nil, fmt.Errorf("storage must be directory")
+		return nil, fmt.Errorf("tmp storage must be directory")
+	}
+
+	completedPath := cfg.CompletedPath
+	info, err = os.Stat(completedPath)
+	if os.IsNotExist(err) {
+		return nil, err
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("completed storage must be directory")
 	}
 
 	return &Storage{
-		path: cfg.Path,
+		tmpPath:       tmpPath,
+		completedPath: completedPath,
 	}, nil
 }
 
@@ -51,7 +61,16 @@ func (s *Storage) Save(filename string, buf bytes.Buffer) error {
 
 	_, err = buf.WriteTo(file)
 	if err != nil {
+		err := os.Remove(s.tmpPath + filename)
+		if err != nil {
+			return fmt.Errorf("%s: %w", fn, err)
+		}
 		return fmt.Errorf("%s: cannot write buf to file: %w", fn, err)
+	}
+
+	err = s.successUpload(filename)
+	if err != nil {
+		return fmt.Errorf("%s: %w", fn, err)
 	}
 
 	return nil
@@ -74,7 +93,7 @@ func (s *Storage) createFile(filename string) (*os.File, error) {
 	}
 
 	// create file
-	path := fmt.Sprintf("%s/%s", s.path, filename)
+	path := fmt.Sprintf("%s/%s", s.tmpPath, filename)
 	file, err := os.Create(path)
 	if err != nil {
 		return nil, fmt.Errorf("%s: cannot create image file: %w", fn, err)
@@ -82,11 +101,21 @@ func (s *Storage) createFile(filename string) (*os.File, error) {
 	return file, nil
 }
 
+// successUpload move file to completed directory
+func (s *Storage) successUpload(filename string) error {
+	const fn = "drive.successUpload"
+	err := os.Rename(s.tmpPath+filename, s.completedPath+filename)
+	if err != nil {
+		return fmt.Errorf("%v: %w", fn, err)
+	}
+	return nil
+}
+
 // List returns all images.
 func (s *Storage) List() ([]Image, error) {
 	const fn = "drive.List"
 
-	entries, err := os.ReadDir(s.path)
+	entries, err := os.ReadDir(s.completedPath)
 	if err != nil {
 		return nil, fmt.Errorf("%v: %w", fn, err)
 	}
@@ -96,7 +125,7 @@ func (s *Storage) List() ([]Image, error) {
 	for _, e := range entries {
 		filename := e.Name()
 
-		fileInfo, err := times.Stat(s.path + filename)
+		fileInfo, err := times.Stat(s.completedPath + filename)
 		if err != nil {
 			return nil, fmt.Errorf("%v: %w", fn, err)
 		}
@@ -121,7 +150,7 @@ func (s *Storage) List() ([]Image, error) {
 // Search searches image on disk.
 func (s *Storage) Search(filename string) (*os.File, error) {
 	const fn = "drive.Search"
-	file, err := os.Open(s.path + filename)
+	file, err := os.Open(s.completedPath + filename)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", fn, err)
 	}

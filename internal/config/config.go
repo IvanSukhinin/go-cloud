@@ -18,7 +18,8 @@ type GRPCConfig struct {
 }
 
 type StorageConfig struct {
-	Path string `yaml:"path"`
+	TmpPath       string `yaml:"tmp_path"`
+	CompletedPath string `yaml:"completed_path"`
 }
 
 type CloudConfig struct {

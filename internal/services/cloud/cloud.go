@@ -61,7 +61,6 @@ func (c *Cloud) List() ([]drive.Image, error) {
 		return nil, fmt.Errorf("%s: %w", fn, err)
 	}
 	return images, nil
-
 }
 
 func (c *Cloud) Search(filename string) (*os.File, error) {
