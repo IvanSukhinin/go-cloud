@@ -84,7 +84,16 @@ func (s *Storage) createFile(filename string) (*os.File, error) {
 	defer s.mu.Unlock()
 
 	// check if file exists
-	isExist, err := s.FileExists(filename)
+	isExist, err := s.fileExistsWithPath(s.completedPath, filename)
+	if err != nil {
+		return nil, err
+	}
+	if isExist {
+		return nil, fmt.Errorf("%s: %w", fn, storage.ErrFileExists)
+	}
+
+	// if the file is in tmp folder it means that it is in the process of downloading
+	isExist, err = s.fileExistsWithPath(s.tmpPath, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -159,13 +168,29 @@ func (s *Storage) Search(filename string) (*os.File, error) {
 
 // FileExists checks file exists.
 func (s *Storage) FileExists(filename string) (bool, error) {
+	const fn = "drive.FileExists"
 	file, err := s.Search(filename)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("%s: %w", fn, err)
 	}
 	defer file.Close()
+	return true, nil
+}
+
+// fileExistsWithPath checks file exists with path param.
+func (s *Storage) fileExistsWithPath(path string, filename string) (bool, error) {
+	const fn = "drive.fileExistsWithPath"
+	file, err := os.Open(path + filename)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", fn, err)
+	}
+	defer file.Close()
+
 	return true, nil
 }
